@@ -1,0 +1,22 @@
+{
+  "name": "ksp-crime-copilot",
+  "version": "1.0.0",
+  "description": "KSP Crime Copilot - AI-powered crime intelligence platform for Karnataka State Police",
+  "main": "index.js",
+  "scripts": {
+    "generate-data": "node data/generate_data.js",
+    "dev": "vercel dev",
+    "start": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "groq-sdk": "^0.5.0",
+    "firebase": "^10.8.0"
+  },
+  "devDependencies": {
+    "vercel": "^32.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
