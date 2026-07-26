@@ -155,7 +155,7 @@ IMPORTANT RULES:
 
     const messages = [
       { role: 'system', content: systemPrompt },
-      ...history.slice(-8), // Last 8 messages for context
+      ...history.slice(-4), // Last 4 messages (2 turns) — keeps first call small
       { role: 'user', content: message }
     ];
 
@@ -187,16 +187,46 @@ IMPORTANT RULES:
         filteredResult = functionResult.filter(fir => fir.district === district);
       }
 
+      const resultCount = Array.isArray(filteredResult) ? filteredResult.length
+                        : filteredResult.person ? 1 : 0;
+
       evidence = {
         functionCalled: functionName,
         arguments: args,
-        resultCount: Array.isArray(filteredResult) ? filteredResult.length : 
-                    filteredResult.person ? 1 : 0,
-        recordIds: Array.isArray(filteredResult) ? 
-          filteredResult.slice(0, 20).map(r => r.firId || r.id) : 
-          [],
+        resultCount,
+        recordIds: Array.isArray(filteredResult)
+          ? filteredResult.slice(0, 20).map(r => r.firId || r.id)
+          : [],
         data: Array.isArray(filteredResult) ? filteredResult.slice(0, 20) : filteredResult
       };
+
+      // ── Token-safe summary sent to the LLM ─────────────────
+      // The raw array can be thousands of records; we send only a
+      // compact summary so the second call stays well under 12k TPM.
+      let llmPayload;
+      if (Array.isArray(filteredResult)) {
+        const sample = filteredResult.slice(0, 15).map(r => ({
+          id:        r.firId || r.id,
+          crime:     r.crimeType,
+          district:  r.district,
+          date:      r.date,
+          status:    r.status,
+          accused:   Array.isArray(r.accused)   ? r.accused.map(a => a.name).join(', ')   : undefined,
+          victim:    Array.isArray(r.victims)    ? r.victims.map(v => v.name).join(', ')   : undefined,
+        }));
+        llmPayload = {
+          total_records: filteredResult.length,
+          shown: sample.length,
+          records: sample
+        };
+      } else {
+        // Non-array (path-finding, anomaly, summary objects) — safe to send as-is
+        // but still cap at ~3000 chars to be safe
+        const raw = JSON.stringify(filteredResult);
+        llmPayload = raw.length > 3000
+          ? JSON.parse(raw.slice(0, 3000) + '"…truncated"}')
+          : filteredResult;
+      }
 
       // Get final response with function result
       const secondCompletion = await groq.chat.completions.create({
@@ -207,7 +237,7 @@ IMPORTANT RULES:
           {
             role: 'function',
             name: functionName,
-            content: JSON.stringify(filteredResult)
+            content: JSON.stringify(llmPayload)
           }
         ],
         temperature: 0.3,
