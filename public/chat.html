@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KSP Crime Copilot — AI Copilot</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#00d4ff">
     <link rel="stylesheet" href="/css/style.css">
     <style>
     /* ── Typewriter cursor on AI messages ── */
@@ -44,6 +46,100 @@
     /* ── Input neon sweep ── */
     .chat-input-wrapper { position: relative; }
     .chat-input:focus { box-shadow: 0 0 0 2px rgba(0,212,255,0.12), 0 0 20px rgba(0,212,255,0.08); }
+
+    /* ── AI Waveform animation (shown while AI is processing) ── */
+    .waveform-container {
+        display: none;
+        align-items: center;
+        gap: 3px;
+        height: 24px;
+        margin-left: auto;
+        padding: 0 0.5rem;
+    }
+    .waveform-container.active { display: flex; }
+    .waveform-bar {
+        width: 3px;
+        height: 8px;
+        background: var(--accent-ai);
+        border-radius: 2px;
+        animation: waveformPulse 0.8s ease-in-out infinite;
+    }
+    .waveform-bar:nth-child(1) { animation-delay: 0s;    height: 6px;  }
+    .waveform-bar:nth-child(2) { animation-delay: 0.1s;  height: 12px; }
+    .waveform-bar:nth-child(3) { animation-delay: 0.2s;  height: 18px; }
+    .waveform-bar:nth-child(4) { animation-delay: 0.3s;  height: 14px; }
+    .waveform-bar:nth-child(5) { animation-delay: 0.4s;  height: 8px;  }
+    .waveform-bar:nth-child(6) { animation-delay: 0.5s;  height: 16px; }
+    .waveform-bar:nth-child(7) { animation-delay: 0.6s;  height: 10px; }
+    .waveform-bar:nth-child(8) { animation-delay: 0.7s;  height: 14px; }
+    @keyframes waveformPulse {
+        0%, 100% { transform: scaleY(0.4); opacity: 0.6; }
+        50%       { transform: scaleY(1);   opacity: 1;   }
+    }
+
+    /* ── Response card templates ── */
+    .ai-response-card {
+        margin-top: 0.75rem;
+        padding: 0.85rem 1rem;
+        border-radius: 10px;
+        border: 1px solid var(--border-color);
+        background: rgba(7,9,26,0.7);
+        font-size: 0.82rem;
+    }
+    .ai-response-card .card-header {
+        display: flex; align-items: center; gap: 0.5rem;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.65rem; letter-spacing: 0.12em;
+        text-transform: uppercase; margin-bottom: 0.6rem;
+        color: var(--accent-ai);
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 0.4rem;
+    }
+    .ai-response-card .card-row {
+        display: flex; justify-content: space-between;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.73rem; padding: 0.2rem 0;
+        color: var(--text-secondary);
+    }
+    .ai-response-card .card-row span:last-child { color: var(--text-primary); }
+    .ai-response-card.suspect { border-color: rgba(255,23,68,0.25); }
+    .ai-response-card.suspect .card-header { color: var(--accent-red-light); }
+    .ai-response-card.evidence { border-color: rgba(255,171,0,0.25); }
+    .ai-response-card.evidence .card-header { color: var(--accent-warning); }
+
+    /* ── Alert / Case notification popup ── */
+    .alert-popup {
+        position: fixed; top: 80px; right: 24px;
+        background: rgba(17,22,51,0.97);
+        border: 1px solid rgba(255,23,68,0.5);
+        border-left: 3px solid var(--accent-red);
+        border-radius: 12px; padding: 1rem 1.25rem;
+        min-width: 280px; max-width: 360px;
+        z-index: 8000; box-shadow: var(--glow-red);
+        animation: alertSlide 0.35s cubic-bezier(0.22,1,0.36,1);
+    }
+    @keyframes alertSlide {
+        from { opacity:0; transform: translateX(30px); }
+        to   { opacity:1; transform: translateX(0); }
+    }
+    .alert-popup .ap-title {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.72rem; letter-spacing: 0.12em;
+        color: var(--accent-red-light); margin-bottom: 0.35rem;
+        text-transform: uppercase;
+    }
+    .alert-popup .ap-body { font-size: 0.82rem; color: var(--text-secondary); }
+    .alert-popup .ap-close {
+        position: absolute; top: 0.5rem; right: 0.75rem;
+        background: none; border: none; cursor: pointer;
+        color: var(--text-muted); font-size: 1.1rem;
+    }
+    .case-popup {
+        border-color: rgba(0,212,255,0.5);
+        border-left-color: var(--accent-ai);
+        box-shadow: var(--glow-blue);
+    }
+    .case-popup .ap-title { color: var(--accent-ai); }
     </style>
 </head>
 <body>
@@ -113,9 +209,20 @@
             <!-- JARVIS status bar -->
             <div class="jarvis-statusbar">
                 <div class="status-dot"></div>
-                <div class="status-item"><span>AI MODEL</span><span>GEMINI PRO</span></div>
+                <div class="status-item"><span>AI MODEL</span><span>LLAMA-3.3-70B</span></div>
                 <div class="status-item"><span>DATA</span><span>LIVE FIR DATABASE</span></div>
                 <div class="status-item"><span>CONTEXT</span><span>KARNATAKA STATE</span></div>
+                <!-- Waveform shown while processing -->
+                <div class="waveform-container" id="waveformAnim">
+                    <div class="waveform-bar"></div>
+                    <div class="waveform-bar"></div>
+                    <div class="waveform-bar"></div>
+                    <div class="waveform-bar"></div>
+                    <div class="waveform-bar"></div>
+                    <div class="waveform-bar"></div>
+                    <div class="waveform-bar"></div>
+                    <div class="waveform-bar"></div>
+                </div>
                 <div class="status-item" style="margin-left:auto;"><span>STATUS</span><span id="aiStatus">READY</span></div>
             </div>
 
@@ -144,6 +251,13 @@
         </div>
     </div>
 
+    <!-- PWA Service Worker registration -->
+    <script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+    </script>
+
     <!-- Scripts -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
@@ -165,37 +279,92 @@
         if (input) { input.value = q; input.focus(); document.getElementById('sendBtn').click(); }
     }
 
-    // Update AI status indicator
+    // Update AI status + waveform
     window.setAIStatus = function(s) {
         const el = document.getElementById('aiStatus');
         if (el) el.textContent = s;
+        const wf = document.getElementById('waveformAnim');
+        if (wf) wf.classList.toggle('active', s === 'PROCESSING...');
     };
 
-    // Command palette shortcut
+    // Global keyboard shortcuts
     document.addEventListener('keydown', e => {
-        if (e.ctrlKey && e.key === 'k') {
+        // Ctrl+Shift+A → new alert popup
+        if (e.ctrlKey && e.shiftKey && e.key === 'A') {
+            e.preventDefault();
+            showAlertPopup('🚨 NEW ALERT', 'Crime-in-progress reported: Bengaluru Urban — Chain Snatching, MG Road.');
+        }
+        // Ctrl+Shift+C → new case popup
+        if (e.ctrlKey && e.shiftKey && e.key === 'C') {
+            e.preventDefault();
+            showAlertPopup('📁 NEW CASE', 'Case #KSP-2025-' + Math.floor(1000+Math.random()*9000) + ' opened — Pending assignment.', 'case');
+        }
+        // Ctrl+K → command palette
+        if (e.ctrlKey && !e.shiftKey && e.key === 'k') {
             e.preventDefault();
             const items = [
                 {icon:'📊',label:'Go to Dashboard',url:'/dashboard.html'},
                 {icon:'🗺️',label:'View Hotspot Map',url:'/map.html'},
                 {icon:'🕸️',label:'Criminal Network',url:'/network.html'},
+                {icon:'🚨',label:'New Alert (Ctrl+Shift+A)',action:()=>showAlertPopup('🚨 NEW ALERT','Simulated alert triggered.')},
+                {icon:'📁',label:'New Case (Ctrl+Shift+C)', action:()=>showAlertPopup('📁 NEW CASE','Case opened.',  'case')},
             ];
             const overlay = document.createElement('div');
             overlay.className = 'cmd-palette-overlay';
             overlay.innerHTML = `<div class="cmd-palette">
-                <input class="cmd-palette-input" id="cmdInput" placeholder="Navigate..." autofocus>
-                <div class="cmd-palette-results">
-                    ${items.map((it,i) => `<div class="cmd-palette-item${i===0?' selected':''}" onclick="location.href='${it.url}'">
+                <input class="cmd-palette-input" id="cmdInput" placeholder="Navigate or run command..." autofocus>
+                <div class="cmd-palette-results" id="cmdResults">
+                    ${items.map((it,i) => `<div class="cmd-palette-item${i===0?' selected':''}" data-idx="${i}">
                         <span class="item-icon">${it.icon}</span><span class="item-label">${it.label}</span>
                     </div>`).join('')}
                 </div>
             </div>`;
             document.body.appendChild(overlay);
-            setTimeout(() => overlay.querySelector('#cmdInput').focus(), 50);
+            const input = overlay.querySelector('#cmdInput');
+            setTimeout(() => input.focus(), 50);
+            // Wire up click handlers for items with actions or urls
+            overlay.querySelectorAll('.cmd-palette-item').forEach((el, i) => {
+                el.addEventListener('click', () => {
+                    overlay.remove();
+                    if (items[i].url) location.href = items[i].url;
+                    else if (items[i].action) items[i].action();
+                });
+            });
+            // Filter
+            input.addEventListener('input', () => {
+                const q = input.value.toLowerCase();
+                overlay.querySelectorAll('.cmd-palette-item').forEach(el => {
+                    el.style.display = el.textContent.toLowerCase().includes(q) ? '' : 'none';
+                });
+            });
             overlay.addEventListener('click', ev => { if (ev.target === overlay) overlay.remove(); });
             overlay.addEventListener('keydown', ev => { if (ev.key === 'Escape') overlay.remove(); });
         }
     });
+
+    // Alert / Case popup helper
+    function showAlertPopup(title, body, type='alert') {
+        const el = document.createElement('div');
+        el.className = 'alert-popup' + (type === 'case' ? ' case-popup' : '');
+        el.innerHTML = `
+            <button class="ap-close" onclick="this.parentElement.remove()">×</button>
+            <div class="ap-title">${title}</div>
+            <div class="ap-body">${body}</div>`;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 6000);
+        // Play alert tone
+        try {
+            const ac = new (window.AudioContext||window.webkitAudioContext)();
+            const o = ac.createOscillator(), g = ac.createGain();
+            o.connect(g); g.connect(ac.destination);
+            o.type = 'sine'; o.frequency.value = type==='case' ? 660 : 440;
+            g.gain.setValueAtTime(0.08, ac.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.4);
+            o.start(); o.stop(ac.currentTime + 0.4);
+        } catch(_) {}
+    }
+    // Make globally available
+    window.showAlertPopup = showAlertPopup;
 
     // Handle URL query param
     window.addEventListener('DOMContentLoaded', () => {

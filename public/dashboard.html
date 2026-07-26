@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KSP Crime Copilot — Mission Control</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#00d4ff">
     <link rel="stylesheet" href="/css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
@@ -78,6 +80,67 @@
     /* ── Clearance bar animated fill ── */
     .clearance-bar-fill { width: 0 !important; transition: width 1.2s cubic-bezier(0.22,1,0.36,1) 0.3s; }
     .clearance-bar-fill.animated { width: var(--target-width) !important; }
+
+    /* ── Speedometer gauge ── */
+    .speedometer-wrap {
+        position: relative; width: 160px; height: 90px;
+        margin: 0.5rem auto; overflow: hidden;
+    }
+    .speedometer-svg { width: 160px; height: 100px; }
+    .gauge-arc { stroke-dasharray: 220; stroke-dashoffset: 220; transition: stroke-dashoffset 1.4s cubic-bezier(0.22,1,0.36,1) 0.4s; }
+    .gauge-arc.animated { stroke-dashoffset: var(--arc-offset, 110); }
+    .gauge-label {
+        text-align: center; font-family: 'JetBrains Mono', monospace;
+        font-size: 0.7rem; color: var(--text-muted); margin-top: -6px;
+    }
+    .gauge-value {
+        position: absolute; bottom: 6px; left: 0; right: 0;
+        text-align: center; font-family: 'JetBrains Mono', monospace;
+        font-size: 1.4rem; font-weight: 700; color: var(--accent-success);
+    }
+
+    /* ── Stream counter ── */
+    .stream-counter {
+        font-family: 'JetBrains Mono', monospace; font-size: 0.65rem;
+        color: var(--accent-ai); letter-spacing: 0.08em;
+        display: flex; align-items: center; gap: 0.4rem;
+        white-space: nowrap;
+    }
+    .stream-counter .s-dot {
+        width: 5px; height: 5px; border-radius: 50%;
+        background: var(--accent-success);
+        animation: dotPulse 0.8s ease-in-out infinite;
+    }
+    .stream-ticker { color: var(--accent-success); transition: all 0.3s; }
+
+    /* ── Alert/Case popup ── */
+    .alert-popup {
+        position: fixed; top: 80px; right: 24px;
+        background: rgba(17,22,51,0.97);
+        border: 1px solid rgba(255,23,68,0.5);
+        border-left: 3px solid var(--accent-red);
+        border-radius: 12px; padding: 1rem 1.25rem;
+        min-width: 280px; max-width: 360px;
+        z-index: 8000; box-shadow: var(--glow-red);
+        animation: alertSlide 0.35s cubic-bezier(0.22,1,0.36,1);
+    }
+    @keyframes alertSlide {
+        from { opacity:0; transform: translateX(30px); }
+        to   { opacity:1; transform: translateX(0); }
+    }
+    .alert-popup .ap-title {
+        font-family: 'JetBrains Mono', monospace; font-size: 0.72rem;
+        letter-spacing: 0.12em; color: var(--accent-red-light);
+        margin-bottom: 0.35rem; text-transform: uppercase;
+    }
+    .alert-popup .ap-body { font-size: 0.82rem; color: var(--text-secondary); }
+    .alert-popup .ap-close {
+        position: absolute; top: 0.5rem; right: 0.75rem;
+        background: none; border: none; cursor: pointer;
+        color: var(--text-muted); font-size: 1.1rem;
+    }
+    .case-popup { border-color: rgba(0,212,255,0.5); border-left-color: var(--accent-ai); box-shadow: var(--glow-blue); }
+    .case-popup .ap-title { color: var(--accent-ai); }
     </style>
 </head>
 <body>
@@ -98,6 +161,12 @@
         <div class="threat-indicator" id="threatIndicator">
             <span class="dot"></span>
             <span id="threatLabel">THREAT: ELEVATED</span>
+        </div>
+        <div class="stream-counter">
+            <span class="s-dot"></span>
+            <span>STREAM</span>
+            <span class="stream-ticker" id="streamCount">0</span>
+            <span>EVT/MIN</span>
         </div>
         <span class="live-clock" id="liveClock">--:--:--</span>
         <div class="user-info" data-user-info><span>Loading...</span></div>

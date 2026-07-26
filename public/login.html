@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KSP Crime Copilot — Secure Access</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#00d4ff">
     <link rel="stylesheet" href="/css/style.css">
     <style>
         /* ── Typewriter cursor on emblem text ── */
@@ -63,6 +65,59 @@
             100%{ box-shadow: var(--glow-blue); }
         }
         .login-card.success { animation: successFlash 0.8s ease; }
+
+        /* ── Shield SVG orbit ring ── */
+        .shield-wrapper {
+            position: relative;
+            width: 90px; height: 90px;
+            margin: 0 auto 0.75rem;
+        }
+        .shield-orbit {
+            position: absolute; inset: -10px;
+            border-radius: 50%;
+            border: 1px solid rgba(0,212,255,0.25);
+            border-top-color: rgba(0,212,255,0.7);
+            animation: shieldOrbit 3s linear infinite;
+        }
+        .shield-orbit-2 {
+            position: absolute; inset: -18px;
+            border-radius: 50%;
+            border: 1px dashed rgba(0,212,255,0.12);
+            border-bottom-color: rgba(0,212,255,0.5);
+            animation: shieldOrbit 6s linear infinite reverse;
+        }
+        @keyframes shieldOrbit {
+            from { transform: rotate(0deg); }
+            to   { transform: rotate(360deg); }
+        }
+        .shield-svg {
+            width: 90px; height: 90px;
+            filter: drop-shadow(0 0 12px rgba(0,212,255,0.5));
+            animation: shieldPulse 3s ease-in-out infinite;
+        }
+        @keyframes shieldPulse {
+            0%,100% { filter: drop-shadow(0 0 8px rgba(0,212,255,0.4)); }
+            50%     { filter: drop-shadow(0 0 22px rgba(0,212,255,0.8)); }
+        }
+
+        /* ── Boot sequence typewriter ── */
+        .boot-sequence {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.62rem;
+            color: var(--accent-success);
+            background: rgba(0,255,65,0.03);
+            border: 1px solid rgba(0,255,65,0.1);
+            border-radius: 6px;
+            padding: 0.6rem 0.8rem;
+            margin-bottom: 1rem;
+            overflow: hidden;
+            max-height: 0;
+            transition: max-height 1s ease;
+            line-height: 1.7;
+        }
+        .boot-sequence.show { max-height: 120px; }
+        .boot-line { opacity: 0; }
+        .boot-line.typed { opacity: 1; }
     </style>
 </head>
 <body class="cell-bar-bg">
@@ -81,7 +136,45 @@
                 <span class="emblem-text">KARNATAKA STATE POLICE · SECURE TERMINAL</span>
             </div>
 
-            <!-- Animated mascot -->
+            <!-- Animated KSP Shield -->
+            <div class="shield-wrapper">
+                <div class="shield-orbit"></div>
+                <div class="shield-orbit-2"></div>
+                <svg class="shield-svg" viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="sg1" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%"   stop-color="#1a3a6e"/>
+                            <stop offset="100%" stop-color="#0d1f40"/>
+                        </linearGradient>
+                        <filter id="glow">
+                            <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                            <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                        </filter>
+                    </defs>
+                    <!-- Shield body -->
+                    <path d="M50 5 L90 22 L90 55 C90 78 72 96 50 105 C28 96 10 78 10 55 L10 22 Z"
+                          fill="url(#sg1)" stroke="#00d4ff" stroke-width="2" filter="url(#glow)"/>
+                    <!-- Inner shield outline -->
+                    <path d="M50 15 L80 29 L80 54 C80 72 66 87 50 95 C34 87 20 72 20 54 L20 29 Z"
+                          fill="none" stroke="rgba(0,212,255,0.3)" stroke-width="1"/>
+                    <!-- Star -->
+                    <text x="50" y="68" text-anchor="middle" font-size="34" fill="#ffab00"
+                          font-family="serif" filter="url(#glow)">★</text>
+                    <!-- KSP text -->
+                    <text x="50" y="48" text-anchor="middle" font-size="10" fill="#00d4ff"
+                          font-family="monospace" letter-spacing="2" font-weight="700">KSP</text>
+                </svg>
+            </div>
+
+            <!-- Boot sequence -->
+            <div class="boot-sequence" id="bootSeq">
+                <div class="boot-line" id="b1">&gt; KSP SECURE TERMINAL v4.2.1</div>
+                <div class="boot-line" id="b2">&gt; Encryption layer: AES-256-GCM ✓</div>
+                <div class="boot-line" id="b3">&gt; AI Engine: LLAMA-3.3-70B ONLINE ✓</div>
+                <div class="boot-line" id="b4">&gt; Awaiting biometric authentication...</div>
+            </div>
+
+            <!-- Holographic mascot -->
             <div class="mascot-container">
                 <div class="mascot">
                     <div class="mascot-body">
@@ -171,6 +264,8 @@
         </div>
     </div>
 
+    <!-- PWA -->
+    <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});</script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="/js/firebase-config.js"></script>
@@ -330,6 +425,20 @@
             errorDiv.classList.add('show');
         }
     });
+
+    // ── Boot sequence animation ──────────────────────────────
+    (function() {
+        const seq = document.getElementById('bootSeq');
+        if (!seq) return;
+        setTimeout(() => { seq.classList.add('show'); }, 400);
+        const lines = ['b1','b2','b3','b4'];
+        lines.forEach((id, i) => {
+            setTimeout(() => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('typed');
+            }, 700 + i * 350);
+        });
+    })();
     </script>
 </body>
 </html>

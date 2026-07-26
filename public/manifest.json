@@ -1,0 +1,30 @@
+{
+  "name": "KSP Crime Copilot",
+  "short_name": "KSP Copilot",
+  "description": "AI-Powered Crime Intelligence Platform for Karnataka State Police",
+  "start_url": "/login.html",
+  "display": "standalone",
+  "background_color": "#0a0e27",
+  "theme_color": "#00d4ff",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' fill='%230a0e27'/><text y='140' font-size='140' text-anchor='middle' x='96'>🛡️</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' fill='%230a0e27'/><text y='380' font-size='380' text-anchor='middle' x='256'>🛡️</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["government", "productivity", "security"],
+  "shortcuts": [
+    { "name": "Dashboard", "short_name": "Dash", "url": "/dashboard.html", "description": "Mission Control Dashboard" },
+    { "name": "AI Chat",   "short_name": "Chat", "url": "/chat.html",      "description": "AI Crime Copilot" },
+    { "name": "Map",       "short_name": "Map",  "url": "/map.html",       "description": "Crime Hotspot Map" }
+  ]
+}
