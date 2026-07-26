@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KSP Crime Copilot — Hotspot Map</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        /* Dark Leaflet overrides */
+        .leaflet-container { background: var(--bg-command); }
+        .leaflet-popup-content-wrapper { background: rgba(10,14,39,0.95); border: 1px solid var(--border-neon); border-radius: 10px; color: var(--text-primary); box-shadow: var(--shadow-card); }
+        .leaflet-popup-tip { background: rgba(10,14,39,0.95); }
+        .leaflet-popup-close-button { color: var(--text-secondary) !important; }
+        .leaflet-control-zoom a { background: rgba(17,22,51,0.95) !important; color: var(--accent-ai) !important; border-color: var(--border-neon) !important; }
+        .leaflet-control-zoom a:hover { background: rgba(0,212,255,0.15) !important; }
+        .leaflet-bar { box-shadow: var(--shadow-card) !important; border: 1px solid var(--border-neon) !important; border-radius: 8px !important; overflow: hidden; }
+        .leaflet-control-attribution { background: rgba(10,14,39,0.8) !important; color: var(--text-muted) !important; font-size: 0.6rem; }
+    </style>
+</head>
+<body>
+    <!-- ── Header ─────────────────────────────────────────── -->
+    <header class="ksp-header">
+        <div class="logo">
+            <div class="badge-icon">🗺️</div>
+            <span>Crime Hotspot Map</span>
+        </div>
+        <nav>
+            <ul class="nav-links">
+                <li><a href="/dashboard.html">📊 Dashboard</a></li>
+                <li><a href="/chat.html">💬 AI Assistant</a></li>
+                <li><a href="/map.html" class="active">🗺️ Hotspot Map</a></li>
+                <li><a href="/network.html">🕸️ Network Graph</a></li>
+            </ul>
+        </nav>
+        <span class="live-clock" id="liveClock">--:--:--</span>
+        <div class="user-info" data-user-info><span>Loading...</span></div>
+        <button class="logout-btn" onclick="authManager.logout()">⏏ Logout</button>
+    </header>
+
+    <!-- ── Map Container ──────────────────────────────────── -->
+    <div class="map-container">
+        <div id="map"></div>
+
+        <!-- Map Controls -->
+        <div class="map-controls">
+            <h3>🔍 MAP FILTERS</h3>
+
+            <span class="map-filter-label">District</span>
+            <select id="districtFilter" class="map-filter">
+                <option value="all">All Districts</option>
+                <option value="Bengaluru Urban">Bengaluru Urban</option>
+                <option value="Mysuru">Mysuru</option>
+                <option value="Mangaluru">Mangaluru</option>
+                <option value="Hubballi-Dharwad">Hubballi-Dharwad</option>
+                <option value="Belagavi">Belagavi</option>
+                <option value="Kalaburagi">Kalaburagi</option>
+                <option value="Tumakuru">Tumakuru</option>
+                <option value="Shivamogga">Shivamogga</option>
+            </select>
+
+            <span class="map-filter-label">Crime Type</span>
+            <select id="crimeTypeFilter" class="map-filter">
+                <option value="all">All Crime Types</option>
+                <option value="Murder">Murder</option>
+                <option value="Robbery">Robbery</option>
+                <option value="Burglary">Burglary</option>
+                <option value="Theft">Theft</option>
+                <option value="Chain Snatching">Chain Snatching</option>
+                <option value="Vehicle Theft">Vehicle Theft</option>
+                <option value="Cybercrime">Cybercrime</option>
+                <option value="Drug Trafficking">Drug Trafficking</option>
+                <option value="Sexual Assault">Sexual Assault</option>
+                <option value="Kidnapping">Kidnapping</option>
+                <option value="Riots/Unlawful Assembly">Riots</option>
+            </select>
+
+            <div class="map-legend">
+                <h4>LEGEND</h4>
+                <div id="legend">
+                    <div class="legend-item"><div class="legend-color" style="background:#ff1744;box-shadow:0 0 6px #ff1744;"></div>High Density Cluster</div>
+                    <div class="legend-item"><div class="legend-color" style="background:#ffab00;box-shadow:0 0 6px #ffab00;"></div>Medium Cluster</div>
+                    <div class="legend-item"><div class="legend-color" style="background:#00d4ff;box-shadow:0 0 6px #00d4ff;"></div>Individual FIR</div>
+                </div>
+            </div>
+
+            <!-- Stats display -->
+            <div style="margin-top:1rem;padding-top:0.75rem;border-top:1px solid var(--border-color);">
+                <div style="display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:0.68rem;margin-bottom:0.3rem;">
+                    <span style="color:var(--text-muted);">VISIBLE INCIDENTS</span>
+                    <span style="color:var(--accent-ai);" id="visibleCount">--</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:0.68rem;">
+                    <span style="color:var(--text-muted);">DATA SOURCE</span>
+                    <span style="color:var(--accent-success);">● LIVE FIR DB</span>
+                </div>
+            </div>
+
+            <p style="font-size:0.65rem;color:var(--text-muted);margin-top:0.75rem;font-family:'JetBrains Mono',monospace;line-height:1.6;">
+                Click markers for case details<br>
+                Red clusters = hotspots
+            </p>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/js/firebase-config.js"></script>
+    <script src="/js/auth.js"></script>
+    <script src="/js/router.js"></script>
+    <script src="/js/map.js"></script>
+
+    <script>
+    // Live clock
+    setInterval(() => {
+        const el = document.getElementById('liveClock');
+        if (el) el.textContent = new Date().toLocaleTimeString('en-GB', {hour12:false});
+    }, 1000);
+    </script>
+</body>
+</html>

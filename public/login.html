@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KSP Crime Copilot — Secure Access</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        /* ── Typewriter cursor on emblem text ── */
+        .ksp-emblem-strip .emblem-text::after {
+            content: '|';
+            animation: cursorBlink 0.9s step-end infinite;
+            color: var(--accent-ai);
+            margin-left: 2px;
+        }
+        @keyframes cursorBlink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+        /* ── Glitch flicker on h1 ── */
+        @keyframes glitch {
+            0%,94%,100% { text-shadow: none; transform: none; }
+            95% { text-shadow: -2px 0 #ff1744, 2px 0 var(--accent-ai); transform: translateX(1px); }
+            97% { text-shadow: 2px 0 #ff1744, -2px 0 var(--accent-ai); transform: translateX(-1px); }
+        }
+        .login-card h1 { animation: glitch 7s ease-in-out infinite; }
+
+        /* ── Input focus neon sweep ── */
+        .form-group { position: relative; }
+        .form-group input { transition: border-color 0.25s, box-shadow 0.25s, background 0.25s; }
+        .neon-sweep {
+            position: absolute;
+            bottom: 0; left: 0;
+            height: 2px; width: 0;
+            background: linear-gradient(90deg, transparent, var(--accent-ai), transparent);
+            transition: width 0.4s ease;
+            pointer-events: none;
+            border-radius: 0 0 10px 10px;
+        }
+        .form-group input:focus ~ .neon-sweep { width: 100%; }
+
+        /* ── Scan status glow pulse when active ── */
+        .scan-status.active {
+            animation: statusGlow 1s ease-in-out infinite alternate;
+        }
+        @keyframes statusGlow {
+            from { text-shadow: none; }
+            to   { text-shadow: 0 0 12px var(--accent-ai), 0 0 25px var(--accent-ai); }
+        }
+
+        /* ── Shake on denied ── */
+        @keyframes shake {
+            0%,100%{transform:translateX(0)}
+            20%{transform:translateX(-6px)}
+            40%{transform:translateX(6px)}
+            60%{transform:translateX(-4px)}
+            80%{transform:translateX(4px)}
+        }
+        .login-card.shake { animation: shake 0.45s ease; }
+
+        /* ── Success flash ── */
+        @keyframes successFlash {
+            0%  { box-shadow: var(--glow-blue); }
+            50% { box-shadow: 0 0 60px rgba(0,255,65,0.5), 0 0 120px rgba(0,255,65,0.2); border-color: var(--accent-success); }
+            100%{ box-shadow: var(--glow-blue); }
+        }
+        .login-card.success { animation: successFlash 0.8s ease; }
+    </style>
+</head>
+<body class="cell-bar-bg">
+
+    <!-- Particle canvas background -->
+    <canvas id="particleCanvas"></canvas>
+
+    <!-- CLASSIFIED watermark -->
+    <div class="classified-watermark">CLASSIFIED // KSP INTERNAL</div>
+
+    <div class="login-container">
+        <div class="login-card">
+
+            <!-- KSP Emblem strip -->
+            <div class="ksp-emblem-strip">
+                <span class="emblem-text">KARNATAKA STATE POLICE · SECURE TERMINAL</span>
+            </div>
+
+            <!-- Animated mascot -->
+            <div class="mascot-container">
+                <div class="mascot">
+                    <div class="mascot-body">
+                        <div class="mascot-cap"></div>
+                        <div class="mascot-eyes">
+                            <div class="mascot-eye"></div>
+                            <div class="mascot-eye"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h1>KSP Crime Copilot</h1>
+            <p class="subtitle">AI-Powered Crime Intelligence Platform</p>
+            <p class="subtitle mono-tag">[ AUTHORIZED PERSONNEL ONLY ]</p>
+
+            <!-- Biometric scanner -->
+            <div class="biometric-scanner">
+                <div class="fingerprint-ring" id="fingerprintRing">🔬</div>
+                <span class="scan-status" id="scanStatus">AWAITING CREDENTIALS</span>
+            </div>
+
+            <!-- Error Message -->
+            <div class="error-message" id="errorMessage"></div>
+
+            <!-- Login Form -->
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="email">Operator ID</label>
+                    <input type="email" id="email" name="email"
+                           placeholder="officer@ksp.gov.in" required
+                           autocomplete="username">
+                    <span class="neon-sweep"></span>
+                </div>
+                <div class="form-group">
+                    <label for="password">Security Code</label>
+                    <input type="password" id="password" name="password"
+                           placeholder="••••••••••" required
+                           autocomplete="current-password">
+                    <span class="neon-sweep"></span>
+                </div>
+                <button type="submit" class="login-btn" id="loginSubmitBtn">
+                    ⚡ INITIALIZE ACCESS
+                </button>
+            </form>
+
+            <div style="text-align:center;margin:0.9rem 0;font-size:0.7rem;color:var(--text-muted);font-family:'JetBrains Mono',monospace;letter-spacing:0.1em;">
+                — OR AUTHENTICATE WITH —
+            </div>
+
+            <button id="googleSignInBtn" class="login-btn google-btn">
+                <span style="display:inline-flex;align-items:center;gap:0.6rem;">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G" width="18" height="18">
+                    Continue with Google SSO
+                </span>
+            </button>
+
+            <!-- Live crime ticker -->
+            <div class="live-ticker">
+                <div class="ticker-header">
+                    <span class="ticker-live-badge">LIVE</span>
+                    <span class="ticker-label-text">INCIDENT FEED — KARNATAKA</span>
+                </div>
+                <div class="ticker-scroll" id="tickerScroll">
+                    <span class="ticker-item"><span class="ticker-dot">◆</span>Bengaluru Urban: 3 new FIRs filed — Theft &amp; Robbery</span>
+                    <span class="ticker-item"><span class="ticker-dot">◆</span>Mysuru: Anomaly detected — Chain Snatching spike (+40%)</span>
+                    <span class="ticker-item"><span class="ticker-dot">◆</span>Mangaluru: 2 cybercrime cases under investigation</span>
+                    <span class="ticker-item"><span class="ticker-dot">◆</span>Hubballi: Warrant issued — Repeat offender apprehended</span>
+                    <span class="ticker-item"><span class="ticker-dot">◆</span>Belagavi: Drug trafficking alert — Border patrol activated</span>
+                    <span class="ticker-item"><span class="ticker-dot">◆</span>System: AI model updated — Prediction accuracy 94.7%</span>
+                    <!-- duplicate for seamless loop -->
+                    <span class="ticker-item"><span class="ticker-dot">◆</span>Bengaluru Urban: 3 new FIRs filed — Theft &amp; Robbery</span>
+                    <span class="ticker-item"><span class="ticker-dot">◆</span>Mysuru: Anomaly detected — Chain Snatching spike (+40%)</span>
+                    <span class="ticker-item"><span class="ticker-dot">◆</span>Mangaluru: 2 cybercrime cases under investigation</span>
+                    <span class="ticker-item"><span class="ticker-dot">◆</span>Hubballi: Warrant issued — Repeat offender apprehended</span>
+                    <span class="ticker-item"><span class="ticker-dot">◆</span>Belagavi: Drug trafficking alert — Border patrol activated</span>
+                    <span class="ticker-item"><span class="ticker-dot">◆</span>System: AI model updated — Prediction accuracy 94.7%</span>
+                </div>
+            </div>
+
+            <!-- Demo creds -->
+            <div class="demo-creds">
+                <strong style="color:var(--text-secondary);">DEMO ACCESS</strong><br>
+                investigator@ksp.gov.in&nbsp;/&nbsp;analyst@ksp.gov.in&nbsp;/&nbsp;supervisor@ksp.gov.in<br>
+                <span style="color:var(--accent-ai);">password: password123</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="/js/firebase-config.js"></script>
+    <script src="/js/auth.js"></script>
+
+    <script>
+    // ── Particle background ──────────────────────────────────
+    (function() {
+        const canvas = document.getElementById('particleCanvas');
+        const ctx    = canvas.getContext('2d');
+        let W, H, particles = [];
+
+        function resize() { W = canvas.width = innerWidth; H = canvas.height = innerHeight; }
+        resize();
+        window.addEventListener('resize', resize);
+
+        for (let i = 0; i < 90; i++) {
+            particles.push({
+                x: Math.random() * innerWidth,
+                y: Math.random() * innerHeight,
+                r: Math.random() * 1.6 + 0.4,
+                vx: (Math.random() - 0.5) * 0.3,
+                vy: (Math.random() - 0.5) * 0.3,
+                a: Math.random() * 0.6 + 0.1
+            });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, W, H);
+            particles.forEach(p => {
+                p.x += p.vx; p.y += p.vy;
+                if (p.x < 0 || p.x > W) p.vx *= -1;
+                if (p.y < 0 || p.y > H) p.vy *= -1;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(0,212,255,${p.a})`;
+                ctx.fill();
+            });
+            // Draw connecting lines
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    const dx = particles[i].x - particles[j].x;
+                    const dy = particles[i].y - particles[j].y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist < 120) {
+                        ctx.beginPath();
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.strokeStyle = `rgba(0,212,255,${0.12 * (1 - dist/120)})`;
+                        ctx.lineWidth = 0.5;
+                        ctx.stroke();
+                    }
+                }
+            }
+            requestAnimationFrame(draw);
+        }
+        draw();
+    })();
+
+    // ── Biometric scan states ────────────────────────────────
+    const ring   = document.getElementById('fingerprintRing');
+    const status = document.getElementById('scanStatus');
+
+    document.getElementById('email').addEventListener('focus', () => {
+        ring.classList.add('scanning');
+        status.textContent = 'SCANNING CREDENTIALS...';
+        status.className = 'scan-status active';
+    });
+
+    document.getElementById('password').addEventListener('focus', () => {
+        ring.classList.add('scanning');
+        status.textContent = 'VERIFYING SECURITY CODE...';
+        status.className = 'scan-status active';
+    });
+
+    document.querySelectorAll('input').forEach(el => {
+        el.addEventListener('blur', () => {
+            ring.classList.remove('scanning');
+            status.textContent = 'AWAITING CREDENTIALS';
+            status.className = 'scan-status';
+        });
+    });
+
+    // ── Web Audio tones ──────────────────────────────────────
+    function playTone(freq, type, dur, vol) {
+        try {
+            const ac = new (window.AudioContext || window.webkitAudioContext)();
+            const o = ac.createOscillator(), g = ac.createGain();
+            o.connect(g); g.connect(ac.destination);
+            o.type = type; o.frequency.value = freq;
+            g.gain.setValueAtTime(vol, ac.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+            o.start(); o.stop(ac.currentTime + dur);
+        } catch(_) {}
+    }
+    function playSuccess() {
+        playTone(523,'sine',0.12,0.15);
+        setTimeout(()=>playTone(659,'sine',0.12,0.12),120);
+        setTimeout(()=>playTone(784,'sine',0.25,0.1),240);
+    }
+    function playError() {
+        playTone(200,'sawtooth',0.18,0.08);
+        setTimeout(()=>playTone(150,'sawtooth',0.25,0.06),180);
+    }
+    function playBeep() { playTone(880,'sine',0.06,0.05); }
+
+    // Soft keystroke beep
+    document.querySelectorAll('input').forEach(inp =>
+        inp.addEventListener('input', () => playBeep())
+    );
+
+    // ── Login form ───────────────────────────────────────────
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email    = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const errorDiv = document.getElementById('errorMessage');
+        const btn      = document.getElementById('loginSubmitBtn');
+        const card     = document.querySelector('.login-card');
+
+        errorDiv.classList.remove('show');
+        btn.textContent = '⏳ AUTHENTICATING...';
+        btn.disabled = true;
+        ring.classList.add('scanning');
+        status.textContent = 'AUTHENTICATING IDENTITY...';
+        status.className = 'scan-status active';
+        playBeep();
+
+        const result = await authManager.login(email, password);
+
+        if (!result.success) {
+            errorDiv.textContent = result.error;
+            errorDiv.classList.add('show');
+            btn.textContent = '⚡ INITIALIZE ACCESS';
+            btn.disabled = false;
+            ring.classList.remove('scanning');
+            status.textContent = 'ACCESS DENIED';
+            status.className = 'scan-status denied';
+            card.classList.add('shake');
+            setTimeout(() => card.classList.remove('shake'), 500);
+            playError();
+            setTimeout(() => { status.textContent = 'AWAITING CREDENTIALS'; status.className = 'scan-status'; }, 3000);
+        } else {
+            status.textContent = 'ACCESS GRANTED';
+            status.className = 'scan-status granted';
+            card.classList.add('success');
+            playSuccess();
+        }
+    });
+
+    document.getElementById('googleSignInBtn').addEventListener('click', async () => {
+        const errorDiv = document.getElementById('errorMessage');
+        errorDiv.classList.remove('show');
+        const result = await authManager.loginWithGoogle();
+        if (!result.success) {
+            errorDiv.textContent = result.error;
+            errorDiv.classList.add('show');
+        }
+    });
+    </script>
+</body>
+</html>

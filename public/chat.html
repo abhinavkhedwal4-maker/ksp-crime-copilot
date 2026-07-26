@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KSP Crime Copilot — AI Copilot</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+    /* ── Typewriter cursor on AI messages ── */
+    .ai-cursor {
+        display: inline-block;
+        width: 2px; height: 1em;
+        background: var(--accent-ai);
+        vertical-align: text-bottom;
+        margin-left: 1px;
+        animation: cursorBlink 0.7s step-end infinite;
+    }
+    @keyframes cursorBlink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* ── Message bubble slide-in ── */
+    @keyframes msgIn { from { opacity:0; transform:translateY(10px) scale(0.98); } to { opacity:1; transform:none; } }
+    .message { animation: msgIn 0.3s cubic-bezier(0.22,1,0.36,1) forwards; }
+
+    /* ── Confidence meter ── */
+    .confidence-meter {
+        display: flex; align-items: center; gap: 0.5rem;
+        font-family: 'JetBrains Mono', monospace; font-size: 0.62rem;
+        color: var(--text-muted); margin-top: 0.5rem;
+    }
+    .conf-bar { flex: 1; height: 3px; background: rgba(0,212,255,0.1); border-radius: 2px; overflow: hidden; }
+    .conf-fill { height: 100%; border-radius: 2px; transition: width 0.8s cubic-bezier(0.22,1,0.36,1) 0.2s; }
+
+    /* ── JARVIS status bar live dot ── */
+    .jarvis-statusbar .status-dot { animation: dotPulse 1.5s ease-in-out infinite; }
+    @keyframes dotPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(0.6)} }
+
+    /* ── Sidebar quick-query hover glow ── */
+    .quick-query-btn:hover { box-shadow: 0 0 12px rgba(0,212,255,0.15); }
+
+    /* ── Page fade ── */
+    @keyframes pageFade { from{opacity:0} to{opacity:1} }
+    .chat-container { animation: pageFade 0.35s ease; }
+
+    /* ── Input neon sweep ── */
+    .chat-input-wrapper { position: relative; }
+    .chat-input:focus { box-shadow: 0 0 0 2px rgba(0,212,255,0.12), 0 0 20px rgba(0,212,255,0.08); }
+    </style>
+</head>
+<body>
+    <!-- ── Header ───────────────────────────────────────────── -->
+    <header class="ksp-header">
+        <div class="logo">
+            <div class="badge-icon">🤖</div>
+            <span>AI Crime Copilot</span>
+        </div>
+        <nav>
+            <ul class="nav-links">
+                <li><a href="/dashboard.html">📊 Dashboard</a></li>
+                <li><a href="/chat.html" class="active">💬 AI Assistant</a></li>
+                <li><a href="/map.html">🗺️ Hotspot Map</a></li>
+                <li><a href="/network.html">🕸️ Network Graph</a></li>
+            </ul>
+        </nav>
+        <span class="live-clock" id="liveClock">--:--:--</span>
+        <div class="user-info" data-user-info><span>Loading...</span></div>
+        <button class="logout-btn" onclick="authManager.logout()">⏏ Logout</button>
+    </header>
+
+    <!-- ── Chat Interface ────────────────────────────────────── -->
+    <div class="chat-container">
+
+        <!-- Sidebar -->
+        <div class="chat-sidebar">
+            <h3>⚡ QUICK QUERIES</h3>
+            <button class="quick-query-btn" onclick="setQuery('Show me recent murders in Bengaluru Urban')">
+                🔍 Recent murders in Bengaluru
+            </button>
+            <button class="quick-query-btn" onclick="setQuery('What are the emerging crime trends in Karnataka?')">
+                🚨 Emerging crime trends
+            </button>
+            <button class="quick-query-btn" onclick="setQuery('Find criminal connections for Rajesh Patil')">
+                🕸️ Network for Rajesh Patil
+            </button>
+            <button class="quick-query-btn" onclick="setQuery('Show FIR statistics for Mysuru district 2024')">
+                📊 FIR stats for Mysuru
+            </button>
+            <button class="quick-query-btn" onclick="setQuery('Which crime types are spiking this month?')">
+                📈 Crime spikes this month
+            </button>
+            <button class="quick-query-btn" onclick="setQuery('Identify districts with low case clearance rates')">
+                🏙️ Low clearance districts
+            </button>
+            <button class="quick-query-btn" onclick="setQuery('Show top repeat offenders across multiple cases')">
+                👤 Top repeat offenders
+            </button>
+            <button class="quick-query-btn" onclick="setQuery('Analyze cybercrime trends in Bengaluru 2024')">
+                💻 Cybercrime analysis
+            </button>
+
+            <div style="margin-top:auto;padding-top:1rem;border-top:1px solid var(--border-color);">
+                <p style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--text-muted);line-height:1.6;">
+                    ℹ All responses grounded in live FIR data.<br>
+                    Click "VIEW EVIDENCE" to see source records.<br><br>
+                    <span style="color:rgba(0,212,255,0.5);">Enter ↵ to send</span><br>
+                    <span style="color:rgba(0,212,255,0.5);">Shift+Enter ↩ new line</span>
+                </p>
+            </div>
+        </div>
+
+        <!-- Chat Main -->
+        <div class="chat-main">
+
+            <!-- JARVIS status bar -->
+            <div class="jarvis-statusbar">
+                <div class="status-dot"></div>
+                <div class="status-item"><span>AI MODEL</span><span>GEMINI PRO</span></div>
+                <div class="status-item"><span>DATA</span><span>LIVE FIR DATABASE</span></div>
+                <div class="status-item"><span>CONTEXT</span><span>KARNATAKA STATE</span></div>
+                <div class="status-item" style="margin-left:auto;"><span>STATUS</span><span id="aiStatus">READY</span></div>
+            </div>
+
+            <!-- Messages -->
+            <div class="chat-messages" id="chatMessages">
+                <!-- Populated by JS -->
+            </div>
+
+            <!-- Input area -->
+            <div class="chat-input-container">
+                <div class="chat-input-wrapper">
+                    <textarea
+                        id="chatInput"
+                        class="chat-input"
+                        placeholder="Ask about crimes, suspects, trends… e.g. 'Show all chain snatching in Bengaluru from 2026'"
+                        rows="1"
+                    ></textarea>
+                    <button id="sendBtn" class="send-btn">
+                        ▶ SEND
+                    </button>
+                </div>
+                <p style="font-size:0.65rem;color:var(--text-muted);margin-top:0.4rem;font-family:'JetBrains Mono',monospace;">
+                    Press Enter to send · Shift+Enter for new line · Ctrl+K for command palette
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="/js/firebase-config.js"></script>
+    <script src="/js/auth.js"></script>
+    <script src="/js/router.js"></script>
+    <script src="/js/chat.js"></script>
+
+    <script>
+    // Live clock
+    setInterval(() => {
+        const el = document.getElementById('liveClock');
+        if (el) el.textContent = new Date().toLocaleTimeString('en-GB', {hour12:false});
+    }, 1000);
+
+    // Quick query helper
+    function setQuery(q) {
+        const input = document.getElementById('chatInput');
+        if (input) { input.value = q; input.focus(); document.getElementById('sendBtn').click(); }
+    }
+
+    // Update AI status indicator
+    window.setAIStatus = function(s) {
+        const el = document.getElementById('aiStatus');
+        if (el) el.textContent = s;
+    };
+
+    // Command palette shortcut
+    document.addEventListener('keydown', e => {
+        if (e.ctrlKey && e.key === 'k') {
+            e.preventDefault();
+            const items = [
+                {icon:'📊',label:'Go to Dashboard',url:'/dashboard.html'},
+                {icon:'🗺️',label:'View Hotspot Map',url:'/map.html'},
+                {icon:'🕸️',label:'Criminal Network',url:'/network.html'},
+            ];
+            const overlay = document.createElement('div');
+            overlay.className = 'cmd-palette-overlay';
+            overlay.innerHTML = `<div class="cmd-palette">
+                <input class="cmd-palette-input" id="cmdInput" placeholder="Navigate..." autofocus>
+                <div class="cmd-palette-results">
+                    ${items.map((it,i) => `<div class="cmd-palette-item${i===0?' selected':''}" onclick="location.href='${it.url}'">
+                        <span class="item-icon">${it.icon}</span><span class="item-label">${it.label}</span>
+                    </div>`).join('')}
+                </div>
+            </div>`;
+            document.body.appendChild(overlay);
+            setTimeout(() => overlay.querySelector('#cmdInput').focus(), 50);
+            overlay.addEventListener('click', ev => { if (ev.target === overlay) overlay.remove(); });
+            overlay.addEventListener('keydown', ev => { if (ev.key === 'Escape') overlay.remove(); });
+        }
+    });
+
+    // Handle URL query param
+    window.addEventListener('DOMContentLoaded', () => {
+        const params = new URLSearchParams(location.search);
+        const q = params.get('query');
+        if (q) {
+            setTimeout(() => {
+                const input = document.getElementById('chatInput');
+                if (input) { input.value = decodeURIComponent(q); document.getElementById('sendBtn').click(); }
+            }, 800);
+        }
+    });
+    </script>
+</body>
+</html>

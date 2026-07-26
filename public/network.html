@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KSP Crime Copilot — Criminal Network Intelligence</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        /* Vis-network dark overrides */
+        #network canvas { background: var(--bg-command) !important; }
+
+        /* ── Graph loading overlay ── */
+        #graphLoader {
+            position: absolute; inset: 0;
+            background: rgba(2,8,24,0.88);
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 1rem;
+            z-index: 20; transition: opacity 0.4s ease;
+        }
+        #graphLoader.hidden { opacity: 0; pointer-events: none; }
+        .graph-spinner {
+            width: 48px; height: 48px;
+            border: 2px solid rgba(0,212,255,0.15);
+            border-top: 2px solid var(--accent-ai);
+            border-right: 2px solid var(--accent-ai);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        .graph-loader-text {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.72rem; color: var(--accent-ai);
+            letter-spacing: 0.15em; text-transform: uppercase;
+        }
+
+        /* ── Node info card reveal ── */
+        @keyframes infoReveal { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+        .node-info-card { animation: infoReveal 0.3s ease; }
+
+        /* ── Sidebar fade-in ── */
+        @keyframes pageFade { from{opacity:0} to{opacity:1} }
+        .network-sidebar { animation: pageFade 0.35s ease; }
+
+        /* ── Search button press feedback ── */
+        .network-btn:active { transform: scale(0.97); }
+        .vis-tooltip {
+            background: rgba(10,14,39,0.95) !important;
+            border: 1px solid var(--border-neon) !important;
+            border-radius: 8px !important;
+            color: var(--text-primary) !important;
+            font-family: 'JetBrains Mono', monospace !important;
+            font-size: 0.75rem !important;
+            box-shadow: var(--shadow-card) !important;
+            padding: 0.5rem 0.75rem !important;
+        }
+        .network-overlay-hint {
+            position: absolute;
+            bottom: 1rem;
+            right: 1rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            text-align: right;
+            pointer-events: none;
+            line-height: 1.8;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <!-- ── Header ─────────────────────────────────────────── -->
+    <header class="ksp-header">
+        <div class="logo">
+            <div class="badge-icon">🕸️</div>
+            <span>Criminal Network Intelligence</span>
+        </div>
+        <nav>
+            <ul class="nav-links">
+                <li><a href="/dashboard.html">📊 Dashboard</a></li>
+                <li><a href="/chat.html">💬 AI Assistant</a></li>
+                <li><a href="/map.html">🗺️ Hotspot Map</a></li>
+                <li><a href="/network.html" class="active">🕸️ Network Graph</a></li>
+            </ul>
+        </nav>
+        <span class="live-clock" id="liveClock">--:--:--</span>
+        <div class="user-info" data-user-info><span>Loading...</span></div>
+        <button class="logout-btn" onclick="authManager.logout()">⏏ Logout</button>
+    </header>
+
+    <!-- ── Network Interface ──────────────────────────────── -->
+    <div class="network-container">
+
+        <!-- Sidebar -->
+        <div class="network-sidebar">
+            <h3>🔍 NETWORK SEARCH</h3>
+
+            <div class="form-group">
+                <label style="color:var(--text-muted);font-size:0.68rem;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:0.1em;">Search Person</label>
+                <input type="text" id="personSearch" class="search-box" placeholder="Enter person name...">
+                <button id="searchBtn" class="network-btn primary">🔍 SHOW NETWORK</button>
+            </div>
+
+            <div style="padding:1rem 0;border-top:1px solid var(--border-color);border-bottom:1px solid var(--border-color);margin-bottom:1rem;">
+                <h4>🔗 FIND CONNECTION PATH</h4>
+                <div class="form-group" style="margin-bottom:0.6rem;">
+                    <label style="color:var(--text-muted);font-size:0.65rem;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:0.1em;display:block;margin-bottom:0.3rem;">Person A</label>
+                    <input type="text" id="pathPerson1" class="search-box" placeholder="First person...">
+                </div>
+                <div class="form-group" style="margin-bottom:0.6rem;">
+                    <label style="color:var(--text-muted);font-size:0.65rem;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:0.1em;display:block;margin-bottom:0.3rem;">Person B</label>
+                    <input type="text" id="pathPerson2" class="search-box" placeholder="Second person...">
+                </div>
+                <button id="findPathBtn" class="network-btn danger">🔗 FIND SHORTEST PATH</button>
+            </div>
+
+            <!-- Node Info -->
+            <div id="nodeInfo">
+                <p style="color:var(--text-muted);font-size:0.75rem;text-align:center;padding:0.5rem 0;font-family:'JetBrains Mono',monospace;">
+                    Click a node to view details
+                </p>
+            </div>
+
+            <!-- Crime Ring Legend -->
+            <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border-color);">
+                <h4>KNOWN CRIME RINGS</h4>
+                <div style="display:flex;flex-direction:column;gap:0.1rem;">
+                    <div class="ring-legend-item"><span style="color:#ff1744;">●</span><span style="color:var(--text-secondary);">Reddy Gang</span></div>
+                    <div class="ring-legend-item"><span style="color:#ff6b35;">●</span><span style="color:var(--text-secondary);">Coastal Cartel</span></div>
+                    <div class="ring-legend-item"><span style="color:#8c6fff;">●</span><span style="color:var(--text-secondary);">Tech Fraudsters</span></div>
+                    <div class="ring-legend-item"><span style="color:#ffab00;">●</span><span style="color:var(--text-secondary);">Highway Robbers</span></div>
+                    <div class="ring-legend-item"><span style="color:#ff6384;">●</span><span style="color:var(--text-secondary);">Border Smugglers</span></div>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border-color);">
+                <div style="display:flex;justify-content:space-between;margin-bottom:0.4rem;">
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--text-muted);">NODES LOADED</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--accent-ai);" id="nodeCount">--</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;">
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--text-muted);">CONNECTIONS</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--accent-ai);" id="edgeCount">--</span>
+                </div>
+            </div>
+
+            <div style="margin-top:auto;padding-top:1rem;font-family:'JetBrains Mono',monospace;font-size:0.62rem;color:var(--text-muted);line-height:1.7;">
+                Scroll to zoom · Drag to pan<br>
+                Ctrl+K for command palette
+            </div>
+        </div>
+
+        <!-- Graph Canvas -->
+        <div class="network-main" style="position:relative;">
+            <!-- Loading overlay -->
+            <div id="graphLoader">
+                <div class="graph-spinner"></div>
+                <div class="graph-loader-text" id="loaderText">INITIALIZING GRAPH ENGINE...</div>
+            </div>
+            <div id="network"></div>
+            <div class="network-overlay-hint">
+                SCROLL = ZOOM &nbsp;·&nbsp; DRAG = PAN<br>
+                CLICK NODE = DETAILS &nbsp;·&nbsp; DOUBLE-CLICK = EXPAND
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://unpkg.com/vis-network@9.1.6/standalone/umd/vis-network.min.js"></script>
+    <script src="/js/firebase-config.js"></script>
+    <script src="/js/auth.js"></script>
+    <script src="/js/router.js"></script>
+    <script src="/js/network.js"></script>
+
+    <script>
+    // Live clock
+    setInterval(() => {
+        const el = document.getElementById('liveClock');
+        if (el) el.textContent = new Date().toLocaleTimeString('en-GB', {hour12:false});
+    }, 1000);
+
+    // Expose node/edge count updater for network.js to use
+    window.updateNetworkStats = function(nodes, edges) {
+        const nc = document.getElementById('nodeCount');
+        const ec = document.getElementById('edgeCount');
+        if (nc) nc.textContent = nodes;
+        if (ec) ec.textContent = edges;
+    };
+
+    // Ctrl+K command palette
+    document.addEventListener('keydown', e => {
+        if (e.ctrlKey && e.key === 'k') {
+            e.preventDefault();
+            const items = [
+                {icon:'📊',label:'Dashboard',url:'/dashboard.html'},
+                {icon:'💬',label:'AI Assistant',url:'/chat.html'},
+                {icon:'🗺️',label:'Hotspot Map',url:'/map.html'},
+            ];
+            const overlay = document.createElement('div');
+            overlay.className = 'cmd-palette-overlay';
+            overlay.innerHTML = `<div class="cmd-palette">
+                <input class="cmd-palette-input" id="cmdInput" placeholder="Navigate..." autofocus>
+                <div class="cmd-palette-results">
+                    ${items.map((it,i) => `<div class="cmd-palette-item${i===0?' selected':''}" onclick="location.href='${it.url}'">
+                        <span class="item-icon">${it.icon}</span><span class="item-label">${it.label}</span>
+                    </div>`).join('')}
+                </div>
+            </div>`;
+            document.body.appendChild(overlay);
+            setTimeout(() => overlay.querySelector('#cmdInput').focus(), 50);
+            overlay.addEventListener('click', ev => { if (ev.target === overlay) overlay.remove(); });
+            overlay.addEventListener('keydown', ev => { if (ev.key === 'Escape') overlay.remove(); });
+        }
+    });
+    </script>
+</body>
+</html>

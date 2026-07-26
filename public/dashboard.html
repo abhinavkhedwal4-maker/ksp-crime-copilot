@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KSP Crime Copilot — Mission Control</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+    /* ── Skeleton loading shimmer ── */
+    @keyframes shimmer {
+        0%   { background-position: -400px 0; }
+        100% { background-position: 400px 0; }
+    }
+    .skeleton {
+        background: linear-gradient(90deg,
+            rgba(0,212,255,0.04) 25%,
+            rgba(0,212,255,0.10) 50%,
+            rgba(0,212,255,0.04) 75%);
+        background-size: 400px 100%;
+        animation: shimmer 1.4s ease-in-out infinite;
+        border-radius: 6px;
+        color: transparent !important;
+        user-select: none;
+    }
+    /* ── Stat card number roll entrance ── */
+    @keyframes countUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+    .stat-value { animation: countUp 0.5s cubic-bezier(0.22,1,0.36,1) forwards; }
+
+    /* ── Card reveal stagger ── */
+    @keyframes cardReveal { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
+    .stat-card  { animation: cardReveal 0.45s ease forwards; opacity:0; }
+    .stat-card:nth-child(1) { animation-delay:0.05s; }
+    .stat-card:nth-child(2) { animation-delay:0.12s; }
+    .stat-card:nth-child(3) { animation-delay:0.19s; }
+    .stat-card:nth-child(4) { animation-delay:0.26s; }
+    .chart-card { animation: cardReveal 0.5s ease forwards; opacity:0; }
+    .chart-card:nth-child(1) { animation-delay:0.1s; }
+    .chart-card:nth-child(2) { animation-delay:0.2s; }
+    .chart-card:nth-child(3) { animation-delay:0.3s; }
+    .chart-card:nth-child(4) { animation-delay:0.4s; }
+
+    /* ── Alert item pulse on first load ── */
+    @keyframes alertSlideIn { from { opacity:0; transform:translateX(-12px); } to { opacity:1; transform:translateX(0); } }
+    .alert-item { animation: alertSlideIn 0.35s ease forwards; opacity:0; }
+    .alert-item:nth-child(1) { animation-delay:0.05s; }
+    .alert-item:nth-child(2) { animation-delay:0.12s; }
+    .alert-item:nth-child(3) { animation-delay:0.19s; }
+    .alert-item:nth-child(4) { animation-delay:0.26s; }
+    .alert-item:nth-child(5) { animation-delay:0.33s; }
+
+    /* ── Toast notification ── */
+    .dash-toast {
+        position: fixed; bottom: 24px; right: 24px;
+        background: rgba(17,22,51,0.97);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(0,212,255,0.3);
+        border-radius: 12px; padding: 0.85rem 1.25rem;
+        font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
+        color: var(--text-primary); z-index: 9999;
+        display: flex; align-items: center; gap: 0.75rem;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.5), var(--glow-blue);
+        animation: toastIn 0.3s cubic-bezier(0.22,1,0.36,1);
+        max-width: 340px;
+    }
+    @keyframes toastIn { from { opacity:0; transform:translateY(16px) scale(0.96); } to { opacity:1; transform:translateY(0) scale(1); } }
+    @keyframes toastOut { to { opacity:0; transform:translateY(16px) scale(0.96); } }
+    .dash-toast.removing { animation: toastOut 0.25s ease forwards; }
+    .dash-toast .t-icon { font-size:1.1rem; flex-shrink:0; }
+    .dash-toast.success { border-left: 3px solid var(--accent-success); }
+    .dash-toast.error   { border-left: 3px solid var(--accent-red); }
+    .dash-toast.info    { border-left: 3px solid var(--accent-ai); }
+
+    /* ── Page load fade-in ── */
+    @keyframes pageFade { from { opacity:0; } to { opacity:1; } }
+    main.dashboard-container { animation: pageFade 0.4s ease; }
+
+    /* ── Clearance bar animated fill ── */
+    .clearance-bar-fill { width: 0 !important; transition: width 1.2s cubic-bezier(0.22,1,0.36,1) 0.3s; }
+    .clearance-bar-fill.animated { width: var(--target-width) !important; }
+    </style>
+</head>
+<body>
+    <!-- ── Header ───────────────────────────────────────────── -->
+    <header class="ksp-header">
+        <div class="logo">
+            <div class="badge-icon">🛡️</div>
+            <span>KSP Crime Copilot</span>
+        </div>
+        <nav>
+            <ul class="nav-links">
+                <li><a href="/dashboard.html" class="active">📊 Dashboard</a></li>
+                <li><a href="/chat.html">💬 AI Assistant</a></li>
+                <li><a href="/map.html">🗺️ Hotspot Map</a></li>
+                <li><a href="/network.html">🕸️ Network Graph</a></li>
+            </ul>
+        </nav>
+        <div class="threat-indicator" id="threatIndicator">
+            <span class="dot"></span>
+            <span id="threatLabel">THREAT: ELEVATED</span>
+        </div>
+        <span class="live-clock" id="liveClock">--:--:--</span>
+        <div class="user-info" data-user-info><span>Loading...</span></div>
+        <button class="logout-btn" onclick="authManager.logout()">⏏ Logout</button>
+    </header>
+
+    <!-- ── Mission Control Content ──────────────────────────── -->
+    <main class="dashboard-container">
+
+        <!-- Welcome Banner -->
+        <div class="welcome-banner">
+            <div>
+                <h2>🎯 Mission Control — Crime Intelligence</h2>
+                <p>Real-time overview of crime patterns across all Karnataka districts</p>
+            </div>
+            <div class="banner-meta">
+                <div>LAST SYNC: <span id="lastUpdated" style="color:var(--accent-ai)">--:--:--</span></div>
+                <button onclick="location.reload()" style="background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.25);color:var(--accent-ai);padding:0.35rem 0.9rem;border-radius:6px;cursor:pointer;margin-top:0.5rem;font-size:0.75rem;font-family:'JetBrains Mono',monospace;letter-spacing:0.08em;">
+                    ↺ REFRESH
+                </button>
+            </div>
+        </div>
+
+        <!-- Stats Grid (populated by JS) -->
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card"><div class="stat-label">LOADING...</div><div class="stat-value">--</div></div>
+        </div>
+
+        <!-- Charts Grid -->
+        <div class="charts-grid" id="chartsGrid">
+            <div class="chart-card">
+                <h3>📊 Crime Distribution by Type <span class="card-tag">LIVE</span></h3>
+                <div class="chart-container"><canvas id="crimeChart"></canvas></div>
+            </div>
+            <div class="chart-card">
+                <h3>📈 Monthly Crime Trend <span class="card-tag">6 MONTHS</span></h3>
+                <div class="chart-container"><canvas id="trendChart"></canvas></div>
+            </div>
+            <div class="chart-card">
+                <h3>🏙️ District-wise Case Comparison <span class="card-tag">ALL DISTRICTS</span></h3>
+                <div class="chart-container"><canvas id="districtChart"></canvas></div>
+            </div>
+            <div class="chart-card">
+                <h3>📋 Case Status Overview <span class="card-tag">POLAR</span></h3>
+                <div class="chart-container"><canvas id="statusChart"></canvas></div>
+            </div>
+        </div>
+
+        <!-- Anomaly Alerts -->
+        <div class="alerts-section">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.75rem;">
+                <h3 style="margin:0;">
+                    🚨 Emerging Threats &amp; Anomalies
+                    <span class="alert-badge" id="alertCount">LOADING...</span>
+                </h3>
+                <button onclick="loadAlerts()" style="background:transparent;border:1px solid var(--border-color);color:var(--text-secondary);padding:0.35rem 0.9rem;border-radius:6px;cursor:pointer;font-size:0.75rem;font-family:'JetBrains Mono',monospace;">
+                    ↺ REFRESH ALERTS
+                </button>
+            </div>
+            <div class="alert-list" id="alertsList">
+                <div class="alert-item"><div class="alert-info"><div class="alert-title">Loading anomaly data...</div></div></div>
+            </div>
+        </div>
+
+        <!-- District Table -->
+        <div class="chart-card" style="margin-bottom:1.75rem;">
+            <h3>📍 District-wise Performance &amp; Case Statistics <span class="card-tag">RANKED</span></h3>
+            <div style="overflow-x:auto;" id="districtTable">
+                <p style="color:var(--text-secondary);text-align:center;padding:2rem;">Loading district statistics...</p>
+            </div>
+        </div>
+
+        <!-- Quick Actions + System Status -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem;margin-bottom:1.75rem;">
+
+            <!-- Quick AI Analysis -->
+            <div class="chart-card">
+                <h3 style="margin-bottom:1rem;">⚡ Quick AI Analysis <span class="card-tag">COPILOT</span></h3>
+                <div style="display:flex;flex-direction:column;gap:0.6rem;">
+                    <button class="quick-action-btn" onclick="window.location.href='/chat.html?query=Show+me+the+top+5+crime+trends'">
+                        🔍 Analyze top crime trends
+                    </button>
+                    <button class="quick-action-btn" onclick="window.location.href='/chat.html?query=Which+districts+have+the+highest+crime+rates'">
+                        📊 District crime comparison
+                    </button>
+                    <button class="quick-action-btn" onclick="window.location.href='/chat.html?query=Identify+repeat+offenders+across+multiple+cases'">
+                        🕸️ Find repeat offenders
+                    </button>
+                    <button class="quick-action-btn" onclick="window.location.href='/chat.html?query=Show+recent+anomalies+and+emerging+crime+hotspots'">
+                        🚨 Emerging crime hotspots
+                    </button>
+                </div>
+            </div>
+
+            <!-- System Status -->
+            <div class="chart-card">
+                <h3 style="margin-bottom:1rem;">🖥️ System Status <span class="card-tag">NOMINAL</span></h3>
+                <div style="display:flex;flex-direction:column;gap:0;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 0;border-bottom:1px solid var(--border-muted);">
+                        <span style="color:var(--text-secondary);font-size:0.82rem;">Database</span>
+                        <span style="color:var(--accent-success);font-size:0.78rem;font-family:'JetBrains Mono',monospace;">● ONLINE</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 0;border-bottom:1px solid var(--border-muted);">
+                        <span style="color:var(--text-secondary);font-size:0.82rem;">AI Model</span>
+                        <span style="color:var(--accent-success);font-size:0.78rem;font-family:'JetBrains Mono',monospace;">● CONNECTED</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 0;border-bottom:1px solid var(--border-muted);">
+                        <span style="color:var(--text-secondary);font-size:0.82rem;">Anomaly Detection</span>
+                        <span style="color:var(--accent-success);font-size:0.78rem;font-family:'JetBrains Mono',monospace;">● ACTIVE</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 0;border-bottom:1px solid var(--border-muted);">
+                        <span style="color:var(--text-secondary);font-size:0.82rem;">Last Data Refresh</span>
+                        <span style="color:var(--text-muted);font-size:0.78rem;font-family:'JetBrains Mono',monospace;" id="systemRefresh">--:--:--</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 0;">
+                        <span style="color:var(--text-secondary);font-size:0.82rem;">Total Records</span>
+                        <span style="color:var(--accent-ai);font-size:0.9rem;font-weight:700;font-family:'JetBrains Mono',monospace;" id="totalRecords">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Keyboard shortcut hint -->
+        <div style="text-align:center;padding-bottom:1.5rem;">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--text-muted);">
+                Press <kbd style="background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.2);border-radius:3px;padding:0.1rem 0.35rem;color:var(--accent-ai);">Ctrl+K</kbd> for command palette
+                &nbsp;·&nbsp;
+                <kbd style="background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.2);border-radius:3px;padding:0.1rem 0.35rem;color:var(--accent-ai);">Ctrl+/</kbd> quick search
+            </span>
+        </div>
+    </main>
+
+    <!-- Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="/js/firebase-config.js"></script>
+    <script src="/js/auth.js"></script>
+    <script src="/js/router.js"></script>
+    <script src="/js/dashboard.js"></script>
+
+    <script>
+    // ── Live clock ──────────────────────────────────────────
+    (function liveClock() {
+        function tick() {
+            document.getElementById('liveClock').textContent =
+                new Date().toLocaleTimeString('en-GB', { hour12: false });
+        }
+        tick();
+        setInterval(tick, 1000);
+    })();
+
+    // ── Chart.js global defaults ────────────────────────────
+    Chart.defaults.color = '#8892b0';
+    Chart.defaults.borderColor = 'rgba(0,212,255,0.08)';
+    Chart.defaults.font.family = "'JetBrains Mono', monospace";
+
+    // ── Prevent double-init if dashboard.js loaded first ───
+    if (!window.dashboardPageLoaded) {
+        window.dashboardPageLoaded = true;
+
+        let crimeChart, trendChart, districtChart, statusChart;
+
+        async function loadDashboardData() {
+            try {
+                const response = await fetch('/api/dashboard-stats', { headers: { Accept: 'application/json' } });
+                if (!response.ok) throw new Error(`API ${response.status}`);
+                const data = JSON.parse(await response.text());
+
+                updateStats(data.summary);
+                updateAlerts(data.recentAnomalies);
+                updateCrimeDistribution(data.crimeDistribution);
+                updateMonthlyTrend(data.monthlyTrend);
+                updateDistrictChart(data.districtStats);
+                updateStatusChart();
+                updateDistrictTable(data.districtStats);
+                updateSystemStatus(data.summary);
+
+                const now = new Date().toLocaleTimeString();
+                document.getElementById('lastUpdated').textContent = now;
+                document.getElementById('systemRefresh').textContent = now;
+
+                // Threat level
+                const hi = data.summary.highSeverityAlerts || 0;
+                const ind = document.getElementById('threatIndicator');
+                const lbl = document.getElementById('threatLabel');
+                if (hi >= 3) { ind.className = 'threat-indicator high'; lbl.textContent = 'THREAT: CRITICAL'; }
+                else if (hi >= 1) { ind.className = 'threat-indicator'; lbl.textContent = 'THREAT: ELEVATED'; }
+                else { ind.className = 'threat-indicator low'; lbl.textContent = 'THREAT: NOMINAL'; }
+
+            } catch (err) {
+                console.error('Dashboard error:', err);
+                document.getElementById('statsGrid').innerHTML = `
+                    <div class="stat-card" style="grid-column:1/-1;text-align:center;border-color:rgba(255,23,68,0.3);">
+                        <div class="stat-label" style="color:var(--accent-red);">⚠ SYSTEM ERROR</div>
+                        <div style="color:var(--text-secondary);margin-top:0.5rem;font-size:0.85rem;">${err.message}</div>
+                        <button onclick="loadDashboardData()" style="margin-top:1rem;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.3);color:var(--accent-ai);padding:0.5rem 1.25rem;border-radius:7px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:0.78rem;">
+                            ↺ RETRY
+                        </button>
+                    </div>`;
+            }
+        }
+
+        function updateStats(s) {
+            document.getElementById('statsGrid').innerHTML = `
+                <div class="stat-card">
+                    <span class="stat-icon">📋</span>
+                    <div class="stat-label">TOTAL FIRs REGISTERED</div>
+                    <div class="stat-value">${s.totalFirs.toLocaleString()}</div>
+                    <div class="stat-change">▲ All districts combined</div>
+                </div>
+                <div class="stat-card alert">
+                    <span class="stat-icon">🚨</span>
+                    <div class="stat-label">ACTIVE ANOMALY ALERTS</div>
+                    <div class="stat-value">${s.activeAlerts}</div>
+                    <div class="stat-change" style="color:var(--accent-red-light);">${s.highSeverityAlerts} HIGH SEVERITY</div>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-icon">🗺️</span>
+                    <div class="stat-label">DISTRICTS COVERED</div>
+                    <div class="stat-value">${s.districtsCovered}</div>
+                    <div class="stat-change">Karnataka State-wide</div>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-icon">👤</span>
+                    <div class="stat-label">PERSONS IN DATABASE</div>
+                    <div class="stat-value">${s.totalPersons.toLocaleString()}</div>
+                    <div class="stat-change">Accused &amp; Victims</div>
+                </div>`;
+        }
+
+        function updateAlerts(anomalies) {
+            document.getElementById('alertCount').textContent = `⚠ ${anomalies.length} ACTIVE`;
+            if (!anomalies.length) {
+                document.getElementById('alertsList').innerHTML =
+                    `<div style="text-align:center;padding:1.5rem;color:var(--text-secondary);font-family:'JetBrains Mono',monospace;font-size:0.82rem;">
+                        ✅ No anomalies detected. System monitoring active.
+                    </div>`;
+                return;
+            }
+            document.getElementById('alertsList').innerHTML = anomalies.map(a => `
+                <div class="alert-item ${a.severity.toLowerCase()}">
+                    <div class="alert-info">
+                        <div class="alert-title">${a.crimeType} · ${a.district}</div>
+                        <div class="alert-detail">Z-Score: ${a.zScore} &nbsp;|&nbsp; Recent: ${a.recentValue} cases &nbsp;|&nbsp; Avg: ${a.historicalMean} &nbsp;|&nbsp; ${a.recentMonth}</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:0.75rem;flex-shrink:0;">
+                        <span class="alert-severity ${a.severity.toLowerCase()}">${a.severity}</span>
+                        <button onclick="window.location.href='/chat.html?query=Details+about+${encodeURIComponent(a.crimeType)}+in+${encodeURIComponent(a.district)}'"
+                            style="background:transparent;border:none;color:var(--accent-ai);cursor:pointer;font-size:0.78rem;font-family:'JetBrains Mono',monospace;text-decoration:underline;white-space:nowrap;">
+                            INVESTIGATE →
+                        </button>
+                    </div>
+                </div>`).join('');
+        }
+
+        const COLORS = ['#ff1744','#ff6b35','#ffab00','#00ff41','#00d4ff','#8c6fff','#ff6384','#36a2eb','#ffce56','#4bc0c0','#9966ff','#ff9f40'];
+
+        function updateCrimeDistribution(data) {
+            if (crimeChart) crimeChart.destroy();
+            const entries = Object.entries(data).sort((a,b) => b[1]-a[1]);
+            crimeChart = new Chart(document.getElementById('crimeChart').getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: entries.map(e=>e[0]),
+                    datasets: [{ data: entries.map(e=>e[1]), backgroundColor: COLORS, borderColor: '#0a0e27', borderWidth: 2, hoverBorderColor: '#00d4ff', hoverBorderWidth: 3 }]
+                },
+                options: { responsive:true, maintainAspectRatio:false,
+                    plugins: { legend: { position:'right', labels:{ color:'#8892b0', padding:10, font:{size:10} }},
+                        tooltip: { callbacks: { label: ctx => { const t=ctx.dataset.data.reduce((a,b)=>a+b,0); return `${ctx.label}: ${ctx.parsed} (${((ctx.parsed/t)*100).toFixed(1)}%)`; }}}
+                    }
+                }
+            });
+        }
+
+        function updateMonthlyTrend(data) {
+            if (trendChart) trendChart.destroy();
+            const months = Object.keys(data).sort();
+            trendChart = new Chart(document.getElementById('trendChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: months,
+                    datasets: [{ label:'Total FIRs', data: months.map(m=>data[m]),
+                        borderColor:'#00d4ff', backgroundColor:'rgba(0,212,255,0.07)',
+                        tension:0.4, fill:true, pointBackgroundColor:'#00d4ff',
+                        pointBorderColor:'#0a0e27', pointBorderWidth:2, pointRadius:4, pointHoverRadius:6
+                    }]
+                },
+                options: { responsive:true, maintainAspectRatio:false,
+                    plugins: { legend: { labels:{ color:'#8892b0' }}},
+                    scales: {
+                        x: { ticks:{color:'#3d4a6a',font:{size:10}}, grid:{color:'rgba(0,212,255,0.05)'} },
+                        y: { ticks:{color:'#3d4a6a',font:{size:10},beginAtZero:true}, grid:{color:'rgba(0,212,255,0.05)'} }
+                    }
+                }
+            });
+        }
+
+        function updateDistrictChart(stats) {
+            if (districtChart) districtChart.destroy();
+            districtChart = new Chart(document.getElementById('districtChart').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: stats.map(d=>d.district),
+                    datasets: [
+                        { label:'Total Cases', data:stats.map(d=>d.totalCases), backgroundColor:'rgba(0,212,255,0.45)', borderColor:'#00d4ff', borderWidth:1, borderRadius:4 },
+                        { label:'Solved Cases', data:stats.map(d=>d.solvedCases), backgroundColor:'rgba(0,255,65,0.45)', borderColor:'#00ff41', borderWidth:1, borderRadius:4 }
+                    ]
+                },
+                options: { responsive:true, maintainAspectRatio:false,
+                    plugins: { legend: { labels:{ color:'#8892b0', usePointStyle:true, font:{size:10} }}},
+                    scales: {
+                        x: { ticks:{color:'#3d4a6a',font:{size:9},maxRotation:45,minRotation:45}, grid:{color:'rgba(0,212,255,0.05)'} },
+                        y: { ticks:{color:'#3d4a6a',font:{size:10},beginAtZero:true}, grid:{color:'rgba(0,212,255,0.05)'} }
+                    }
+                }
+            });
+        }
+
+        function updateStatusChart() {
+            if (statusChart) statusChart.destroy();
+            const statusData = { 'Under Investigation':450,'Chargesheet Filed':380,'Arrest Made':290,'Convicted':210,'Acquitted':110,'Pending':60 };
+            statusChart = new Chart(document.getElementById('statusChart').getContext('2d'), {
+                type: 'polarArea',
+                data: {
+                    labels: Object.keys(statusData),
+                    datasets: [{ data:Object.values(statusData),
+                        backgroundColor: ['rgba(255,23,68,0.5)','rgba(255,107,53,0.5)','rgba(255,171,0,0.5)','rgba(0,255,65,0.5)','rgba(140,111,255,0.5)','rgba(0,212,255,0.5)'],
+                        borderColor:'#0a0e27', borderWidth:2
+                    }]
+                },
+                options: { responsive:true, maintainAspectRatio:false,
+                    plugins: { legend:{ position:'bottom', labels:{ color:'#8892b0', padding:12, font:{size:10}, usePointStyle:true }}},
+                    scales: { r:{ ticks:{ color:'#3d4a6a', backdropColor:'transparent', font:{size:9}}, grid:{ color:'rgba(0,212,255,0.08)'} }}
+                }
+            });
+        }
+
+        function updateDistrictTable(stats) {
+            if (!stats || !stats.length) { document.getElementById('districtTable').innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:2rem;">No data</p>'; return; }
+            stats = [...stats].sort((a,b)=>b.totalCases-a.totalCases);
+            document.getElementById('districtTable').innerHTML = `
+                <table class="data-table">
+                    <thead><tr>
+                        <th>District</th><th style="text-align:right">Total</th>
+                        <th style="text-align:right">Solved</th><th style="text-align:right">Pending</th>
+                        <th>Clearance Rate</th><th>Grade</th>
+                    </tr></thead>
+                    <tbody>
+                        ${stats.map(d => {
+                            const rate = d.totalCases ? ((d.solvedCases/d.totalCases)*100).toFixed(1) : 0;
+                            const color = rate>=70 ? '#00ff41' : rate>=50 ? '#ffab00' : '#ff1744';
+                            const grade = rate>=70 ? 'good' : rate>=50 ? 'medium' : 'poor';
+                            const gLabel = rate>=70 ? 'GOOD' : rate>=50 ? 'FAIR' : 'POOR';
+                            return `<tr>
+                                <td style="font-weight:600;">📍 ${d.district}</td>
+                                <td style="text-align:right;">${d.totalCases.toLocaleString()}</td>
+                                <td style="text-align:right;color:var(--accent-success);">${d.solvedCases.toLocaleString()}</td>
+                                <td style="text-align:right;color:var(--accent-red);">${d.pendingCases.toLocaleString()}</td>
+                                <td>
+                                    <div class="clearance-bar">
+                                        <div class="clearance-bar-track">
+                                            <div class="clearance-bar-fill" style="--target-width:${rate}%;background:${color};"></div>
+                                        </div>
+                                        <span style="font-family:'JetBrains Mono',monospace;font-size:0.75rem;min-width:40px;">${rate}%</span>
+                                    </div>
+                                </td>
+                                <td><span class="perf-badge ${grade}">${gLabel}</span></td>
+                            </tr>`;
+                        }).join('')}
+                    </tbody>
+                </table>`;
+        }
+
+        function updateSystemStatus(s) {
+            const el = document.getElementById('totalRecords');
+            if (el) el.textContent = (s.totalFirs + s.totalPersons).toLocaleString();
+        }
+
+        async function loadAlerts() {
+            try {
+                const r = await fetch('/api/anomaly-detection');
+                const d = await r.json();
+                updateAlerts(d.anomalies);
+            } catch(e) { console.error(e); }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Show skeleton cards immediately
+            document.getElementById('statsGrid').innerHTML = [1,2,3,4].map(() => `
+                <div class="stat-card">
+                    <div class="skeleton" style="height:1.2rem;width:60%;margin-bottom:0.75rem;">&nbsp;</div>
+                    <div class="skeleton" style="height:2.2rem;width:45%;margin-bottom:0.4rem;">&nbsp;</div>
+                    <div class="skeleton" style="height:0.75rem;width:55%;">&nbsp;</div>
+                </div>`).join('');
+            loadDashboardData();
+            setInterval(loadDashboardData, 300000);
+        });
+    }
+
+    // ── Animated number counter ───────────────────────────
+    function animateCount(el, target, duration) {
+        const start   = parseInt(el.textContent.replace(/,/g,'')) || 0;
+        const startT  = performance.now();
+        const isFloat = String(target).includes('.');
+        function step(now) {
+            const p = Math.min((now - startT) / duration, 1);
+            const ease = 1 - Math.pow(1 - p, 3); // ease-out cubic
+            const val  = start + (target - start) * ease;
+            el.textContent = isFloat
+                ? val.toFixed(1)
+                : Math.round(val).toLocaleString();
+            if (p < 1) requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+    }
+
+    // ── Toast helper ─────────────────────────────────────
+    function showToast(msg, type='info', duration=3500) {
+        const t = document.createElement('div');
+        t.className = `dash-toast ${type}`;
+        const icon = type==='success'?'✅':type==='error'?'🚨':'ℹ';
+        t.innerHTML = `<span class="t-icon">${icon}</span><span>${msg}</span>`;
+        document.body.appendChild(t);
+        setTimeout(() => {
+            t.classList.add('removing');
+            t.addEventListener('animationend', () => t.remove(), {once:true});
+        }, duration);
+    }
+
+    // Animate clearance bars after table render
+    function triggerBarAnimations() {
+        document.querySelectorAll('.clearance-bar-fill').forEach(bar => {
+            requestAnimationFrame(() => bar.classList.add('animated'));
+        });
+    }
+
+    // Override updateStats to animate numbers
+    const _origUpdateStats = typeof updateStats !== 'undefined' ? updateStats : null;
+    // Patch loadDashboardData success path to run counter animations
+    const _origLoad = window.loadDashboardData;
+    if (_origLoad) {
+        window.loadDashboardData = async function() {
+            await _origLoad();
+            // Animate stat values after render
+            requestAnimationFrame(() => {
+                document.querySelectorAll('#statsGrid .stat-value').forEach(el => {
+                    const raw = el.textContent.replace(/,/g,'').replace('%','');
+                    const num = parseFloat(raw);
+                    if (!isNaN(num)) animateCount(el, num, 900);
+                });
+                triggerBarAnimations();
+            });
+        };
+    }
+
+    // ── Command palette shortcut ──────────────────────────
+    document.addEventListener('keydown', e => {
+        if (e.ctrlKey && e.key === 'k') { e.preventDefault(); openCommandPalette(); }
+    });
+
+    function openCommandPalette() {
+        const overlay = document.createElement('div');
+        overlay.className = 'cmd-palette-overlay';
+        overlay.id = 'cmdPalette';
+        const items = [
+            { icon:'📊', label:'Go to Dashboard', url:'/dashboard.html' },
+            { icon:'💬', label:'Open AI Assistant', url:'/chat.html' },
+            { icon:'🗺️', label:'View Hotspot Map', url:'/map.html' },
+            { icon:'🕸️', label:'Criminal Network Graph', url:'/network.html' },
+            { icon:'↺',  label:'Refresh Dashboard', action: () => location.reload() },
+            { icon:'⏏',  label:'Logout', action: () => authManager.logout() },
+        ];
+        overlay.innerHTML = `
+            <div class="cmd-palette">
+                <input class="cmd-palette-input" id="cmdInput" placeholder="Type a command or navigate..." autofocus>
+                <div class="cmd-palette-results" id="cmdResults">
+                    ${items.map((it,i) => `<div class="cmd-palette-item${i===0?' selected':''}" data-idx="${i}">
+                        <span class="item-icon">${it.icon}</span>
+                        <span class="item-label">${it.label}</span>
+                    </div>`).join('')}
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+        let sel = 0;
+        const rdivs = () => overlay.querySelectorAll('.cmd-palette-item');
+
+        overlay.querySelector('#cmdInput').addEventListener('input', e => {
+            const q = e.target.value.toLowerCase();
+            rdivs().forEach(d => { d.style.display = d.querySelector('.item-label').textContent.toLowerCase().includes(q) ? '' : 'none'; });
+        });
+
+        overlay.addEventListener('keydown', e => {
+            const visible = [...rdivs()].filter(d => d.style.display !== 'none');
+            if (e.key === 'ArrowDown') { sel = Math.min(sel+1, visible.length-1); }
+            else if (e.key === 'ArrowUp') { sel = Math.max(sel-1, 0); }
+            else if (e.key === 'Enter') { visible[sel]?.click(); return; }
+            else if (e.key === 'Escape') { overlay.remove(); return; }
+            visible.forEach((d,i) => d.classList.toggle('selected', i===sel));
+        });
+
+        rdivs().forEach((d,i) => {
+            d.addEventListener('click', () => {
+                const it = items[i];
+                overlay.remove();
+                if (it.url) location.href = it.url;
+                else if (it.action) it.action();
+            });
+        });
+
+        overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+        setTimeout(() => overlay.querySelector('#cmdInput').focus(), 50);
+    }
+    </script>
+</body>
+</html>

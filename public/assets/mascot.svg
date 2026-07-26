@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 250" width="200" height="250">
+  <defs>
+    <!-- Glow filters -->
+    <filter id="blueGlow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="redGlow">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Gradients -->
+    <linearGradient id="bodyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2d5aa0;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#1a3a6e;stop-opacity:1"/>
+    </linearGradient>
+    <linearGradient id="badgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffd700;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#ff8c00;stop-opacity:1"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background elements -->
+  <rect x="0" y="0" width="200" height="250" fill="#0d1117" rx="10"/>
+  
+  <!-- Cell bars pattern -->
+  <g opacity="0.1">
+    <line x1="20" y1="0" x2="20" y2="250" stroke="#1f6feb" stroke-width="1"/>
+    <line x1="60" y1="0" x2="60" y2="250" stroke="#1f6feb" stroke-width="1"/>
+    <line x1="100" y1="0" x2="100" y2="250" stroke="#1f6feb" stroke-width="1"/>
+    <line x1="140" y1="0" x2="140" y2="250" stroke="#1f6feb" stroke-width="1"/>
+    <line x1="180" y1="0" x2="180" y2="250" stroke="#1f6feb" stroke-width="1"/>
+  </g>
+  
+  <!-- Body (robot suit) -->
+  <rect x="60" y="120" width="80" height="80" rx="20" fill="url(#bodyGrad)" stroke="#58a6ff" stroke-width="2"/>
+  
+  <!-- Armor details -->
+  <rect x="70" y="130" width="60" height="60" rx="10" fill="none" stroke="#58a6ff" stroke-width="1" opacity="0.5"/>
+  <line x1="100" y1="130" x2="100" y2="190" stroke="#58a6ff" stroke-width="1" opacity="0.5"/>
+  
+  <!-- Badge on chest -->
+  <circle cx="100" cy="160" r="12" fill="url(#badgeGrad)" stroke="#ffd700" stroke-width="1.5"/>
+  <text x="100" y="165" text-anchor="middle" font-size="14" font-weight="bold" fill="#1a3a6e">★</text>
+  
+  <!-- Arms -->
+  <rect x="40" y="135" width="20" height="50" rx="8" fill="url(#bodyGrad)" stroke="#58a6ff" stroke-width="1.5"/>
+  <rect x="140" y="135" width="20" height="50" rx="8" fill="url(#bodyGrad)" stroke="#58a6ff" stroke-width="1.5"/>
+  
+  <!-- Legs -->
+  <rect x="70" y="200" width="25" height="40" rx="8" fill="url(#bodyGrad)" stroke="#58a6ff" stroke-width="1.5"/>
+  <rect x="105" y="200" width="25" height="40" rx="8" fill="url(#bodyGrad)" stroke="#58a6ff" stroke-width="1.5"/>
+  
+  <!-- Boots -->
+  <rect x="65" y="235" width="35" height="12" rx="5" fill="#1a3a6e" stroke="#58a6ff" stroke-width="1"/>
+  <rect x="100" y="235" width="35" height="12" rx="5" fill="#1a3a6e" stroke="#58a6ff" stroke-width="1"/>
+  
+  <!-- Head -->
+  <rect x="70" y="60" width="60" height="60" rx="15" fill="url(#bodyGrad)" stroke="#58a6ff" stroke-width="2"/>
+  
+  <!-- Police Cap -->
+  <rect x="60" y="45" width="80" height="20" rx="8" fill="#1a237e" stroke="#58a6ff" stroke-width="1.5"/>
+  <rect x="55" y="35" width="90" height="15" rx="8" fill="#1a237e" stroke="#58a6ff" stroke-width="1.5"/>
+  
+  <!-- Cap badge -->
+  <circle cx="100" cy="42" r="8" fill="url(#badgeGrad)" stroke="#ffd700" stroke-width="1"/>
+  <text x="100" y="47" text-anchor="middle" font-size="10" font-weight="bold" fill="#1a3a6e">K</text>
+  
+  <!-- Eyes (blue glowing) -->
+  <g filter="url(#blueGlow)">
+    <ellipse cx="88" cy="85" rx="8" ry="6" fill="#4fc3f7"/>
+    <ellipse cx="112" cy="85" rx="8" ry="6" fill="#4fc3f7"/>
+    <ellipse cx="88" cy="85" rx="4" ry="3" fill="#ffffff" opacity="0.8"/>
+    <ellipse cx="112" cy="85" rx="4" ry="3" fill="#ffffff" opacity="0.8"/>
+  </g>
+  
+  <!-- Mouth -->
+  <rect x="90" y="100" width="20" height="8" rx="4" fill="#1a3a6e" stroke="#58a6ff" stroke-width="1"/>
+  
+  <!-- Wanted poster in background -->
+  <rect x="10" y="50" width="40" height="50" rx="3" fill="#8b6914" stroke="#d2991d" stroke-width="1" opacity="0.3"/>
+  <text x="30" y="70" text-anchor="middle" font-size="6" fill="#d2991d" font-weight="bold">WANTED</text>
+  <rect x="18" y="75" width="24" height="15" fill="#0d1117" opacity="0.5"/>
+  
+  <!-- Title text -->
+  <text x="100" y="20" text-anchor="middle" font-size="18" font-weight="bold" fill="#58a6ff" font-family="Arial, sans-serif">KSP</text>
+  <text x="100" y="260" text-anchor="middle" font-size="10" fill="#8b949e" font-family="Arial, sans-serif">CRIME COPILOT</text>
+</svg>
