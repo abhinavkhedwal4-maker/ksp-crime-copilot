@@ -3,15 +3,21 @@ const QueryEngine = require('../utils/queryEngine');
 const BFSTraversal = require('../utils/bfs');
 const AnomalyScorer = require('../utils/anomalyScorer');
 
-const queryEngine = new QueryEngine();
-const bfs = new BFSTraversal(queryEngine);
-const anomalyScorer = new AnomalyScorer(queryEngine);
+// ── Lazy singletons — initialised once per warm instance ──────────────────
+// Keeping these outside the handler avoids re-loading 1.7 MB JSON on every
+// request. Groq is created lazily inside the handler so a missing API key
+// returns a clean 500 JSON instead of crashing the module at import time.
+let queryEngine, bfs, anomalyScorer;
+function getServices() {
+  if (!queryEngine) {
+    queryEngine   = new QueryEngine();
+    bfs           = new BFSTraversal(queryEngine);
+    anomalyScorer = new AnomalyScorer(queryEngine);
+  }
+  return { queryEngine, bfs, anomalyScorer };
+}
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY
-});
-
-// Conversation history (in-memory store - use Redis/DB in production)
+// Conversation history (in-memory — lost on cold start, fine for demo)
 const conversationHistory = new Map();
 
 const FUNCTION_DEFINITIONS = [
@@ -99,39 +105,56 @@ const FUNCTION_DEFINITIONS = [
   }
 ];
 
-async function executeFunction(functionName, args) {
+async function executeFunction(functionName, args, services) {
+  const { queryEngine: qe, bfs: b, anomalyScorer: as } = services;
   switch(functionName) {
     case 'query_by_district':
-      return queryEngine.queryByDistrict(args.district);
+      return qe.queryByDistrict(args.district);
     case 'query_by_crime_type':
-      return queryEngine.queryByCrimeType(args.crime_type);
+      return qe.queryByCrimeType(args.crime_type);
     case 'query_by_date_range':
-      return queryEngine.queryByDateRange(args.start_date, args.end_date);
+      return qe.queryByDateRange(args.start_date, args.end_date);
     case 'query_by_person':
-      return queryEngine.queryByPerson(args.name);
+      return qe.queryByPerson(args.name);
     case 'query_connections':
-      return bfs.findShortestPath(args.person1, args.person2);
+      return b.findShortestPath(args.person1, args.person2);
     case 'query_district_crime_summary':
-      return queryEngine.queryDistrictCrimeSummary(
+      return qe.queryDistrictCrimeSummary(
         args.district, args.crime_type, args.start_date, args.end_date
       );
     case 'detect_anomalies':
-      return anomalyScorer.detectAnomalies(args.district);
+      return as.detectAnomalies(args.district);
     default:
       return { error: 'Unknown function' };
   }
 }
 
 module.exports = async function handler(req, res) {
+  // ── Always return JSON, even on startup errors ───────────────────────────
+  res.setHeader('Content-Type', 'application/json');
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // ── Guard: GROQ_API_KEY must be set in Vercel environment variables ──────
+  if (!process.env.GROQ_API_KEY) {
+    console.error('GROQ_API_KEY environment variable is not set');
+    return res.status(500).json({
+      error: 'AI service not configured. Please set GROQ_API_KEY in Vercel environment variables.',
+      setup: 'Go to Vercel Dashboard → Project → Settings → Environment Variables → Add GROQ_API_KEY'
+    });
+  }
+
   const { message, userId, district } = req.body;
-  
+
   if (!message) {
     return res.status(400).json({ error: 'Message is required' });
   }
+
+  // ── Lazy-init Groq client and data services ──────────────────────────────
+  const groq     = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  const services = getServices();
 
   try {
     // Get or create conversation history
@@ -179,7 +202,7 @@ IMPORTANT RULES:
       const args = JSON.parse(responseMessage.function_call.arguments);
       
       console.log(`Executing function: ${functionName}`, args);
-      const functionResult = await executeFunction(functionName, args);
+      const functionResult = await executeFunction(functionName, args, services);
 
       // Filter by district if user is restricted
       let filteredResult = functionResult;

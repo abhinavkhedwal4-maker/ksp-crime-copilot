@@ -51,28 +51,46 @@ class ChatInterface {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message,
-          userId: this.user.uid,
-          district: this.user.district,
+          userId: this.user?.uid || 'anonymous',
+          district: this.user?.district || 'All Districts',
           conversationId: this.conversationId
         })
       });
 
-      const data = await response.json();
-      
+      // Safely parse JSON — API might return HTML error page on crash
+      let data;
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        console.error('Non-JSON API response:', response.status, text.slice(0, 300));
+        data = { error: `Server error ${response.status}` };
+      }
+
       // Remove typing indicator
       this.removeTypingIndicator(typingId);
-
       if (window.setAIStatus) window.setAIStatus('READY');
 
-      if (response.ok) {
+      if (response.ok && data.response) {
         this.addMessage('ai', data.response, data.evidence);
+      } else if (data.error) {
+        // Show the actual error from the server — much more useful for debugging
+        const msg = data.setup
+          ? `**Configuration Error**\n\n${data.error}\n\n${data.setup}`
+          : `**Error:** ${data.error}`;
+        this.addMessage('ai', msg);
       } else {
-        this.addMessage('ai', 'Sorry, I encountered an error processing your request. Please try again.');
+        this.addMessage('ai', 'Sorry, I encountered an error. Please try again.');
       }
     } catch (error) {
       this.removeTypingIndicator(typingId);
       if (window.setAIStatus) window.setAIStatus('ERROR');
-      this.addMessage('ai', 'Connection error. Please check your network and try again.');
+      // More helpful message depending on error type
+      const msg = error instanceof TypeError
+        ? '**Network error** — cannot reach the server. Check your internet connection or try again.'
+        : `**Error:** ${error.message}`;
+      this.addMessage('ai', msg);
       console.error('Chat error:', error);
     }
   }
